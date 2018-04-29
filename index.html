@@ -1,0 +1,636 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Документ без названия</title>
+	
+<script src="https://yastatic.net/jquery/3.1.0/jquery.min.js"></script>	
+<style>
+	.func_part{
+		border: 3px solid #32738B;
+		border-radius: 8px;
+		margin: 0 0 3rem 0;
+		padding:0 1rem 1rem 1rem;
+	}	
+	.func_part h1{
+		background-color: #32738B;
+		color: #fff;
+		border-radius: 3px 3px 0 0;
+		margin: 0 -1rem 1rem -1rem;
+		padding:0.5rem;
+		
+	}	
+	
+	#recipe_title{
+		font-size: 1.4em;
+		width: 100%;
+
+	}
+	input[type="file"]{
+		width: 60%;		
+		border: 1px solid #AAA;
+		background-color: #EEE;
+
+	}
+	#recipe_descr{
+		width: 100%;
+	}
+	.img_thumb{display: inline-block;
+	max-width: 64px;
+	max-height: 64px;
+	}
+	
+	.photo_item{
+		display: inline-block;
+		margin: 0.5rem;
+		padding: 0;
+		position: relative;
+		width: 128px;
+		height: 128px;
+		overflow: hidden;
+	}
+	.photo_item img{
+		max-width: 128px;
+		max-height: 128px;
+	}
+	.photo_item_del{
+		position: absolute;
+		top:3px;
+		right: 3px;
+		width: 16px;
+		height: 16px;
+		background-color: #F4C4C5;
+		color: red;
+		z-index: 10;
+		cursor: pointer;
+	}
+	.hlp2{
+		background-color: #B8ECFC;
+		font-size: 1.5em;
+		font-weight: bold;
+	}
+	.user_prof_bl{
+		border: 1px solid #C9D9D4; 
+		border-radius: 11px;
+		padding: 0.5rem;
+		margin: 1rem 0;
+	}
+	
+	
+</style>
+</head>
+
+<body>
+<script>	
+var GL_auth_user_id=0;var GL_auth_user_name='';
+function REST_request(method, url, data, callback, errorreq) { var cmnthlp=method+'  '+url;$('#ajax_debug').append( '<div class="hlp2">'+cmnthlp+'</div><hr>' );if (jQuery.isFunction(data)) {callback = data;data = {};}
+return jQuery.ajax({type: method,url: url,data: data,dataType: 'json',processData: false,contentType: false,success: callback, 
+error:function( jqXHR, status, errorThrown ){ // ошибка ответа сервера
+			console.log( 'ОШИБКА AJAX запроса (!'+cmnthlp+'!): ' + status, jqXHR.responseText );
+			$('#ajax_debug').append('<em><strong><h2 align="center">jqXHR.responseText</h2></strong></em>'+jqXHR.responseText + '<em><strong><h2 align="center">jqXHR.responseText END</h2></strong></em><hr>' );
+} });
+}
+	
+function refresh_after_auth(){
+	if (GL_auth_user_id){
+		$('#auth_form').hide();
+		$('#auth_username').show();
+		$('#authorised_user_name').html(GL_auth_user_name);
+
+		$('#add_recipe_cap').hide();
+		$('#add_recipe_frame').show();
+	}else{
+		$('#auth_form').show();
+		$('#auth_username').hide();
+		$('#authorised_user_name').html('-none-');
+
+		$('#add_recipe_cap').show();
+		$('#add_recipe_frame').hide();
+		
+	}
+}
+	
+function debug_info(respond){
+	$('#ajax_debug').append(respond.debug + '<hr>' );
+}	
+</script>	
+	
+<h1 align="center">Клиентская часть для тестирования функционала API модуля</h1>	<br>
+
+<!-- ============================================================================ -->	
+	
+	
+<div class="func_part" ><h1>форма "добавить нового пользователя"</h1>
+  <div id="adduser_frame">
+		<label>имя пользователя:<br><input type="text" name="login" id="login" value=""></label><br><br>
+		<label>пароль:<br><input type="text" name="passw1" id="passw1" value=""></label><br><br>
+		<label>повтор пароля:<br><input type="text" name="passw2" id="passw2" value=""></label><br><br>
+		<button type="button" onClick="adduser()">добавить пользователя</button>	
+	</div>
+</div>	
+	
+<script>
+	
+function adduser(){
+	var data = new FormData();
+	data.append( 'name', 	$('#login').val() );
+	data.append( 'passw1',  $('#passw1').val() );	
+	data.append( 'passw2',  $('#passw2').val() );
+	REST_request('POST', '/api/users', data,
+		function( respond ){
+			if( typeof respond.error === 'undefined' ){ // ОК 
+				console.log('POST /api/users - Ok');
+				console.log('respond.user_id: '+respond.user_id );
+				console.log('respond.user_name: '+respond.user_name );
+				$('#adduser_frame').append('<p>добавлен новый пользователь: <span style="color:green;">'+respond.user_name+'</span> ID:<strong>'+respond.user_id+'</strong></p>');
+
+				load_user_list();// обновим список пользователей
+				
+			}else{// в ответке сервера указана ошибка
+				$('#adduser_frame').append('<br>при добавлении пользователя возникла ошибка: <strong><span style="color:red;">'+respond.error+'</span></strong> ');
+				console.log('ОШИБКА: '+cmnthlp+' :' + respond.error );
+			}
+			debug_info(respond);
+		});
+}
+	
+
+</script>	
+	
+	
+<!-- ============================================================================ -->	
+	
+	
+<div class="func_part">
+  <h1>список зарегистрированных пользователей</h1>
+	<div id="userlist_frame" style="border: 1px solid #777777; margin: 1rem 0; padding: 5px;"></div>
+</div>	
+
+<script>	
+	
+function load_user_list(){
+	REST_request('GET', '/api/users',
+		function( respond ){
+			console.log('load_user_list respond:');
+			console.log( respond );
+
+			if( typeof respond.error === 'undefined' ){ // ОК 
+				console.log('GET /api/users - Ok');				
+				$('#userlist_frame').html( construct_userlist_table( respond.users_list ) );	
+			}else{// в ответке сервера указана ошибка
+				$('#userlist_frame').html('ОШИБКА запроса списка пользователей');
+				console.log('ОШИБКА: GET /api/users :' + respond.error );
+			}
+			debug_info(respond);
+		});
+}
+	
+function construct_userlist_table( userlist=[] ){ // строим таблицу из данных массива
+	var userlist_table = '<table border="1" cellspacing="0" cellpadding="0"><tbody>'+
+						 '<tr><th scope="col">User ID</th><th scope="col">User Name</th><th scope="col">go profile</th><th scope="col">del</th></tr>';
+console.log('construct_userlist_table' );
+console.log(userlist );
+	userlist.forEach(function(item, i, arr) { 
+		userlist_table += '<tr><td>'+item.user_id+'&nbsp;</td><td>'+item.user_name+'&nbsp;</td>'+
+			'<td align="center"><button type="button" onClick="show_user_detail('+item.user_id+')">=&gt;</button></td>'+
+			'<td align="center"><button type="button" onClick="delete_user('+item.user_id+', this)" style="color:red;">Х</button></td></tr>'; 
+	}); 
+
+	userlist_table += '</tbody></table>'; 
+	return userlist_table;
+}
+	
+	
+function show_user_detail( user_id ){ // строим таблицу из данных массива
+	REST_request('GET', '/api/users/'+user_id,
+		function( respond ){
+			if( typeof respond.error === 'undefined' ){ // ОК 
+				console.log('GET /api/users - Ok');				
+				$('#userlist_frame').append( respond.users_profile_str );	
+			}else{// в ответке сервера указана ошибка
+				$('#userlist_frame').html('ОШИБКА запроса детализации пользователя ID:'+user_id);
+				console.log('ОШИБКА: GET /api/users :' + respond.error );
+			}
+			debug_info(respond);
+		});
+}
+	
+	
+function delete_user( user_id , obj ){ // строим таблицу из данных массива
+	if ( !confirm('желаете удалить пользователя ID:'+user_id)){ return;}
+	REST_request('DELETE', '/api/users/'+user_id,
+		function( respond ){
+			if( typeof respond.error === 'undefined' ){ // ОК 
+				console.log('GET /api/users - Ok');				
+				if (respond.user_id>0) $(obj).parent().parent().remove();
+				$('#userlist_frame').append( respond.message );	
+			}else{// в ответке сервера указана ошибка
+				$('#userlist_frame').append('<br>ОШИБКА удаления пользователя ID:'+user_id);
+				$('#userlist_frame').append('<br>'+respond.error);
+				console.log('ОШИБКА: GET /api/users :' + respond.error );
+			}
+			debug_info(respond);
+		});
+}	
+
+		   
+</script>	
+
+
+
+<!-- ============================================================================ -->	
+	
+	
+	
+<div class="func_part">
+	<h1>форма авторизации</h1>
+	
+	<div id="auth_form" style="display: block;">
+		<label>имя пользователя:<br><input type="text" name="auth_login" id="auth_login" value=""></label><br>
+		<br>
+		<label>пароль:<br><input type="text" name="auth_passw" id="auth_passw" value=""></label><br>
+		<br>
+		<button type="button" onClick="login()">войти</button>
+	</div>
+
+	<div id="auth_username" style="display: none;">
+		<span>сессия авторизована для пользователя: <strong><span id="authorised_user_name">{user_name}</span></strong></span> <br>
+		<button type="button" onClick="logoff()">завершить сеанс</button>
+	</div>
+
+</div>	
+	
+<script>	
+		
+function login(){ // авторизация пользователя (если сессия уже авторизована - переавторизуем на нового)
+	var data = new FormData();
+	data.append( 'name', $('#auth_login').val() );
+	data.append( 'passw', $('#auth_passw').val() );
+
+	REST_request('POST', '/api/authorise', data,
+		function( respond ){
+			if( typeof respond.error === 'undefined' ){ // ОК 
+				console.log('POST /api/authorise - Ok');				
+				GL_auth_user_id   = respond.user_id;
+				GL_auth_user_name = respond.user_name;
+
+				refresh_after_auth();
+			}else{// в ответке сервера указана ошибка
+				console.log('ОШИБКА: POST /api/authorise :' + respond.error );
+			}
+			debug_info(respond);
+		});
+}
+		
+
+function logoff(){
+	REST_request('DELETE', '/api/authorise/'+GL_auth_user_id,
+		function( respond ){
+			if( typeof respond.error === 'undefined' ){ // ОК 
+				console.log('DELETE /api/authorise - Ok');				
+				GL_auth_user_id   = 0;
+				GL_auth_user_name = '';
+				
+				refresh_after_auth();
+			}else{// в ответке сервера указана ошибка
+				console.log('ОШИБКА: DELETE /api/authorise :' + respond.error );
+			}
+			debug_info(respond);
+		});
+}
+
+</script>	
+	
+	
+<!-- ============================================================================ -->	
+	
+<script>	
+	
+function add_new_inp( ){
+	
+	$('#input_frame_01').append('<div class="inp_photo"><input type="file" class="addimg" name="photo[]"><button onClick="$(this).parent().remove();\">X</button></div>');
+}
+	
+	
+
+	
+function add_recipe(){
+
+	// 1. добавляем новый рецепт на основе заполненных полей и получаем ид-шник
+	var recipe_id=0;
+
+	var data = new FormData();
+	data.append( 'recipe_title', $('#recipe_title').val() );
+	data.append( 'recipe_descr', $('#recipe_descr').val() );
+
+	REST_request('POST', '/api/recipes/', data,
+		function( respond ){
+			console.log('respond' );
+			console.log(respond );
+			if( typeof respond.error === 'undefined' ){ // ОК 
+				$('#add_recipe_frame').append( '<br>добавлен новый рецепт с ID:'+respond.recipe_id+'<br>' );
+
+				// 2. загружаем выбранные фотографии на сервер и привязываем их к нашему рецепту [recipe_id]
+				add_images(respond.recipe_id, respond.upload_url);
+			} 
+			else {// в ответке сервера указана ошибка
+				console.log('ОШИБКА POST /api/recipes/: ' + respond.error );
+				$('#add_recipe_frame').append( '<br>'+respond.error );
+			}
+			debug_info(respond);
+		});
+}
+	
+function add_images(recipe_id, upload_url){
+
+	var data = new FormData();
+	$('input[type="file"].addimg').each(function(){
+		files = this.files;
+		//if (files==null) {continue;}
+		//data.clear;	//@todo -подумать как лучше очищать
+		$.each( files, function( key, value ){
+			console.log( 'key: '+key );console.log( 'value:' );console.log( value );
+			data.append( key, value );	
+		});
+		
+		upload_images(data, upload_url + recipe_id );
+	
+
+	}); //$('input[type="file"]').each
+}
+	
+	
+function upload_images(data, upload_url, ){
+
+	REST_request('POST', upload_url, data,
+		function( respond ){
+			console.log('respond:');
+			console.log( respond );
+			if( typeof respond.error === 'undefined' ){ // ОК 
+				// выведем пути загруженных файлов в блок 
+				var files_path = respond.files;
+				var html = '<hr>загружено фото:<br>';
+				$.each( files_path, function( key, val ){
+					 html += val +'<br>';
+				} )
+
+				$('#add_recipe_frame').append( html );
+			}
+			else {// в ответке сервера указана ошибка
+				console.log('ОШИБКА POST /api/photos/: ' + respond.error );
+			}
+			debug_info(respond);
+
+	}); 
+}
+	
+</script>	
+	
+	
+	
+<div class="func_part">
+	<h1>форма "добавить новый рецепт"</h1>
+  <div id="add_recipe_frame" style="display: none;">
+		<label>название рецепта:<br><input type="text" name="recipe_title" id="recipe_title" value=""></label><br>
+		<br>
+		<label>описание рецепта:<br><textarea name="recipe_descr" id="recipe_descr"  rows="5"></textarea></label>	
+
+		<fieldset style="border: 1px solid #777777; margin: 1rem 0 0 0; padding: 5px;"><legend>Прикрепить изображение</legend>
+		<div id="input_frame_01">	
+			<div class="inp_photo"><input type="file" class="addimg" name="photo[]" ><button onClick="$(this).parent().remove();">X</button></div>
+		</div>
+		<p><button type="button" onClick="add_new_inp();">добавить еще одно поле</button></p>
+		</fieldset>
+		
+	<button onClick="add_recipe()">сохранить рецепт</button>
+	</div>	
+	
+  <div id="add_recipe_cap" style="display: block;">
+		<h2>для добавления нового рецепта нужно авторизоваться...</h2>
+	</div>
+	
+</div>
+
+	
+
+<!-- ============================================================================ -->	
+	
+	
+<div class="func_part">
+	<h1>форма "список рецептов" / &quot;рецепт детально&quot;</h1>
+	<div id="recipe_list_frame">
+		<small><em>кликни на элемент списка для детализированного отображения рецепта...</em></small>
+		
+		<div id="recipe_list_table"></div>
+		
+		
+	</div>
+</div>
+
+<div id="ajax_debug" style="border: 1px solid #D511BC;"><h2 align="center">окно отладочной информации</h2><br><hr><br></div>	
+
+
+<script>	
+	
+	function load_recipe_list(){
+		$('#recipe_list_table').html('<img src="/img/wait.gif" width="19" height="19" alt=""/>');
+		console.log('load_recipe_list -----------------------------------------');
+		
+		REST_request('GET', '/api/recipes',
+			function( respond ){
+				console.log('respond:');
+				console.log( respond );
+				if( typeof respond.error === 'undefined' ){ // ОК 
+				
+					console.log('GET /api/recipe - Ok');				
+					$('#recipe_list_table').html( construct_recipe_table( respond.recipelist ) );	
+				}else{// ошибка
+					$('#recipe_list_table').append('<br>ОШИБКА запроса списка рецептов'+respond.error );
+					console.log('ОШИБКА: GET /api/recipe :' + respond.error );
+				}
+				debug_info(respond);
+		});
+	}
+	
+	function construct_recipe_table( recipelist=[] ){ // строим таблицу из данных массива
+		var recipelist_table = '<table border="1" cellspacing="0" cellpadding="0"><tbody>'+
+							 '<tr><th scope="col">recipe ID</th><th scope="col">recipe title</th><th scope="col">кто изменял</th><th scope="col">edit</th><th scope="col">del</th></tr>';
+
+		recipelist.forEach(function(item, i, arr) {
+			recipelist_table += '<tr><td>'+item.recipe_id+'&nbsp;</td><td>'+item.recipe_title+'&nbsp;</td><td>'+item.recipe_modif+'&nbsp;</td>'+
+			'<td align="center"><button type="button" onClick="construct_recipe_detail('+item.recipe_id+')">=&gt;</button></td>'+
+			'<td align="center"><button type="button" onClick="delete_recipe('+item.recipe_id+', this)" style="color:red;">Х</button></td></tr>'; 
+		}); 
+		
+		recipelist_table += '</tbody></table>'; 
+		return recipelist_table;
+	}
+	
+
+	function construct_recipe_detail(recipe_id){ // детализация рецепта (для редактирования)
+		//$('#recipe_list_table').html('<img src="/img/wait.gif" width="49" height="49" alt=""/>');
+		REST_request('GET', '/api/recipes/'+recipe_id,
+			function( respond ){
+				console.log('respond:');
+				console.log( respond );
+				if( typeof respond.error === 'undefined' ){ // ОК 
+					console.log('GET /api/recipes - Ok');	
+					
+				var rec_det_form = '<div id="add_recipe_detail2" style="display: block;">'+
+		'<label>название рецепта:<br><input type="text" id="recipe_title2" value="'+respond.title+'"></label><br>'+
+		
+		'<label>описание рецепта:<br><textarea id="recipe_descr2"  rows="5">'+respond.description+'</textarea></label>'+
+
+		'<fieldset style="border: 1px solid #777777; margin: 1rem 0 0 0; padding: 5px;"><legend>Прикрепить изображение</legend>'+
+		'<div id="input_frame_02">'+
+		'	<div class="inp_photo"><input type="file" class="editimg" name="photo[]" ><button onClick="$(this).parent().remove();">X</button></div>'+
+		'</div>'+
+		'<p><button type="button" onClick="add_new_inp();">добавить еще одно поле</button></p>'+
+		'</fieldset>'+
+		
+	'<button onClick="modify_recipe('+respond.id+')">сохранить рецепт</button>'+
+	'</div><hr>';
+					
+					
+					
+					$('#recipe_list_table').html( rec_det_form );
+					$('#recipe_list_table').append( construct_recipe_photos( respond.photos ) );	
+				
+				
+				}else{// ошибка
+					$('#recipe_list_table').append('ОШИБКА '+ respond.error);
+					console.log('ОШИБКА: GET /api/recipes :' + respond.error );
+				}
+				debug_info(respond);
+			});
+	}
+function modify_recipe(recipe_id){
+
+	var data = new FormData();
+	data.append( 'recipe_title', $('#recipe_title2').val() );
+	data.append( 'recipe_descr', $('#recipe_descr2').val() );
+
+	REST_request('PUT', '/api/recipes/'+recipe_id, data,
+		function( respond ){
+			console.log('respond' );
+			console.log(respond );
+			if( typeof respond.error === 'undefined' ){ // ОК 
+				$('#add_recipe_frame').append( '<br>изменен рецепт с ID:'+respond.recipe_id+'<br>' );
+
+				// загружаем дополнительные фотографии на сервер и привязываем их к нашему рецепту [recipe_id]
+				add_images2( recipe_id, respond.upload_url );
+			} 
+			else {// в ответке сервера указана ошибка
+				console.log('ОШИБКА POST /api/recipes/id : ' + respond.error );
+				$('#add_recipe_frame').append( '<br>'+respond.error );
+			}
+			debug_info(respond);
+		});
+}
+	
+function add_images2(recipe_id, upload_url){
+
+	var data = new FormData();
+	$('input[type="file"].editimg').each(function(){
+		files = this.files;
+		//if (files==null) {continue;}
+		//data.clear;	//@todo -подумать как лучше очищать
+		$.each( files, function( key, value ){
+			console.log( 'key: '+key );console.log( 'value:' );console.log( value );
+			data.append( key, value );	
+		});
+		
+		upload_images(data, upload_url + recipe_id );
+
+	}); 
+}
+	
+	
+	
+	function delete_recipe( photo_id , obj ) {
+		if (confirm('желаете удалить рецепт ID:'+photo_id)){
+			// $(obj).parent().parent().remove();
+		}
+	}
+	
+	
+	function construct_recipe_photos( list_photo=[] ){ // строим таблицу из данных массива
+		var recipe_photos = '<div class="photo_list">';
+
+		list_photo.forEach(function(item, i, arr) {
+			recipe_photos += '<div class="photo_item" ><img src="/photo/'+item.photo_filename+'" /><div class="photo_item_del"  onClick="del_photo('+item.photo_id+', this)">X</div>  </div>'; 
+		}); 
+		
+		recipe_photos += '</div>'; 
+		return recipe_photos;
+	}
+	
+	function del_photo( photo_id , obj ) {
+		if (confirm('желаете удалить фото ID:'+photo_id)){
+			
+			$.ajax({
+				url         : '/api/photos/'+photo_id,
+				type        : 'DELETE', 
+				//data        : data,
+				cache       : false,
+				dataType    : 'json',
+				success     : function( respond, status, jqXHR ){
+					console.log('respond' );
+					console.log(respond );
+					// ОК - фото удалено
+					if( typeof respond.error === 'undefined' ){
+						$(obj).parent().remove();
+
+					}
+					// ошибка
+					else {
+						console.log('ОШИБКА DELETE /api/photos/: ' + respond.error );
+					}
+					debug_info(respond);
+				},
+				// функция ошибки ответа сервера
+				error: function( jqXHR, status, errorThrown ){
+					console.log( 'ОШИБКА AJAX запроса (DELETE /api/photos/): ' + status, jqXHR.responseText );
+				}
+			});
+			
+		}
+			
+	}
+	
+	
+$(document).ready(function() {//загрузили DOM 	
+	//construct_recipe_detail(1);
+	load_user_list();
+	load_recipe_list();
+
+	// проверяем сеанс на авторизацию
+	REST_request('GET', '/api/authorise',
+		function( respond ){
+			console.log('respond:');
+			console.log( respond );
+			if( typeof respond.error === 'undefined' ){	// ОК 
+				GL_auth_user_id   = respond.user_id;
+				GL_auth_user_name = respond.user_name;	
+				console.log('GET /api/authorise - Ok');
+				console.log('respond.user_id: '+GL_auth_user_id );
+				console.log('respond.user_name: '+GL_auth_user_name );
+
+				refresh_after_auth();
+
+			}else{	// ошибка
+				console.log('ОШИБКА: GET /api/authorise :' + respond.error );
+				console.log('ОШИБКА:яфя '+cmnthlp+' :' + respond.error );
+			}
+				debug_info(respond);
+	});
+		
+});	
+	
+</script>
+
+
+
+	
+</body>
+</html>
