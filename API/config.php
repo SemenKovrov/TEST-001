@@ -29,4 +29,4 @@ define("DIR_PHOTOS",	$_SERVER['DOCUMENT_ROOT'] . '/photo' );
 
 
 // режим отладки
-define("DEBUG_MODE",	true  ); 
+define("DEBUG_MODE",	false  ); 
