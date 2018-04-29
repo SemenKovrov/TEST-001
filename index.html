@@ -547,12 +547,29 @@ function add_images2(recipe_id, upload_url){
 	
 	
 	
-	function delete_recipe( photo_id , obj ) {
-		if (confirm('желаете удалить рецепт ID:'+photo_id)){
-			// $(obj).parent().parent().remove();
+function delete_recipe( recipe_id , obj ) {
+	if (!confirm('желаете удалить рецепт ID:'+recipe_id)){ return; }
+		// $(obj).parent().parent().remove();
+
+	REST_request('DELETE', '/api/recipes/'+recipe_id, 
+	function( respond ){
+		console.log('respond' );
+		console.log(respond );
+		if( typeof respond.error === 'undefined' ){ // ОК 
+			$('#add_recipe_frame').append( '<br>удален рецепт с ID:'+respond.recipe_id+'<br>' );
+
+			load_recipe_list();
+		}else {// в ответке сервера указана ошибка
+			console.log('ОШИБКА POST /api/recipes/id : ' + respond.error );
+			$('#add_recipe_frame').append( '<br>'+respond.error );
 		}
+		debug_info(respond);
 	}
+
+
+	);
 	
+}
 	
 	function construct_recipe_photos( list_photo=[] ){ // строим таблицу из данных массива
 		var recipe_photos = '<div class="photo_list">';
